@@ -1,0 +1,136 @@
+services:
+  # ============================================
+  # PostgreSQL - LiteLLM 数据库
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - openclaw-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Copilot Proxy - GitHub Copilot API 代理
+  # 提供 OpenAI 兼容接口访问 GitHub Copilot 模型
+  # ============================================
+  copilot-proxy:
+    image: ghcr.io/hankchiutw/copilot-proxy:latest
+    container_name: copilot-proxy
+    restart: unless-stopped
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      PORT: "3000"
+      LOG_LEVEL: info
+    volumes:
+      - ./data/copilot-proxy:/app/.storage
+    ports:
+      # 仅绑定 localhost，通过 SSH 隧道访问 Web UI 管理 token
+      - "127.0.0.1:3001:3000"
+    networks:
+      - openclaw-network
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "require('http').get('http://localhost:3000/health', function(r) { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', function() { process.exit(1); });"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ============================================
+  # LiteLLM - 统一 AI 模型网关
+  # 将 Azure OpenAI / GitHub Copilot 统一为 OpenAI 兼容 API
+  # ============================================
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: litellm
+    restart: unless-stopped
+    command: ["--config", "/app/config/litellm_config.yaml"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+      STORE_MODEL_IN_DB: "True"
+      # 模型参数（通过 litellm_config.yaml 引用）
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_MODEL: ${AZURE_OPENAI_MODEL}
+      COPILOT_PROXY_TOKEN: ${COPILOT_PROXY_TOKEN}
+    volumes:
+      - ./data/litellm:/app/data
+      - ./litellm_config.yaml:/app/config/litellm_config.yaml:ro
+    networks:
+      - openclaw-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      copilot-proxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(1); result=s.connect_ex(('localhost', 4000)); s.close(); exit(0 if result == 0 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ============================================
+  # OpenClaw - AI 助手主体
+  # 通过飞书/Web 等渠道与用户交互
+  # ============================================
+  openclaw:
+    image: alpine/openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      OPENCLAW_GATEWAY_MODE: local
+      FEISHU_APP_ID: ${FEISHU_APP_ID}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET}
+      # 所有模型请求通过 LiteLLM 代理
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
+      OPENAI_API_BASE: http://litellm:4000
+      ANTHROPIC_API_KEY: ${LITELLM_MASTER_KEY}
+    volumes:
+      - ./data/openclaw:/home/node/.openclaw
+    ports:
+      # Gateway 端口（飞书 webhook 需要公网访问，不能绑定 localhost）
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+    networks:
+      - openclaw-network
+    depends_on:
+      litellm:
+        condition: service_started
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    command:
+      - "node"
+      - "dist/index.js"
+      - "gateway"
+      - "--bind"
+      - "lan"
+      - "--port"
+      - "18789"
+      - "--allow-unconfigured"
+    healthcheck:
+      test: ["CMD", "node", "dist/index.js", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  openclaw-network:
+    driver: bridge

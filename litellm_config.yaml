@@ -1,0 +1,58 @@
+# ============================================
+# LiteLLM Proxy 配置
+# 统一管理 Azure OpenAI 和 GitHub Copilot 模型
+# ============================================
+
+litellm_settings:
+  # 自动丢弃目标 API 不支持的参数（如 Azure 不支持 store）
+  drop_params: true
+
+model_list:
+  # ----------------------------------------
+  # Azure OpenAI GPT 5.2
+  # ----------------------------------------
+  - model_name: azure-gpt-5-2
+    litellm_params:
+      model: azure/${AZURE_OPENAI_MODEL}
+      api_key: os.environ/AZURE_OPENAI_API_KEY
+      api_base: os.environ/AZURE_OPENAI_ENDPOINT
+      api_version: "2024-12-01-preview"
+    model_info:
+      max_input_tokens: 128000
+      max_output_tokens: 16384
+
+  # ----------------------------------------
+  # Claude Opus 4.5 (通过 GitHub Copilot)
+  # ----------------------------------------
+  - model_name: claude-opus-4-5
+    litellm_params:
+      model: openai/claude-opus-4.5
+      api_base: http://copilot-proxy:3000/api
+      api_key: os.environ/COPILOT_PROXY_TOKEN
+    model_info:
+      max_input_tokens: 125000
+      max_output_tokens: 8192
+
+  # ----------------------------------------
+  # Claude Opus 4.6 (通过 GitHub Copilot)
+  # ----------------------------------------
+  - model_name: claude-opus-4-6
+    litellm_params:
+      model: openai/claude-opus-4.6
+      api_base: http://copilot-proxy:3000/api
+      api_key: os.environ/COPILOT_PROXY_TOKEN
+    model_info:
+      max_input_tokens: 125000
+      max_output_tokens: 16384
+
+  # ----------------------------------------
+  # Claude Sonnet 4.5 (通过 GitHub Copilot)
+  # ----------------------------------------
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: openai/claude-sonnet-4.5
+      api_base: http://copilot-proxy:3000/api
+      api_key: os.environ/COPILOT_PROXY_TOKEN
+    model_info:
+      max_input_tokens: 125000
+      max_output_tokens: 8192

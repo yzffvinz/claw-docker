@@ -9,5 +9,8 @@ docker compose pull openclaw
 echo "Restarting openclaw container..."
 docker compose up -d --no-deps openclaw
 
+echo "Cleaning up old images..."
+docker image prune -f
+
 echo "Done. Container status:"
 docker compose ps openclaw

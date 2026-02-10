@@ -6,6 +6,11 @@ services:
     image: postgres:16-alpine
     container_name: postgres
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       POSTGRES_DB: litellm
       POSTGRES_USER: litellm
@@ -28,6 +33,11 @@ services:
     image: ghcr.io/hankchiutw/copilot-proxy:latest
     container_name: copilot-proxy
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       PORT: "3000"
@@ -54,6 +64,11 @@ services:
     image: ghcr.io/berriai/litellm:main-latest
     container_name: litellm
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     command: ["--config", "/app/config/litellm_config.yaml"]
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
@@ -90,6 +105,11 @@ services:
     image: alpine/openclaw:latest
     container_name: openclaw
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       HOME: /home/node
       TERM: xterm-256color

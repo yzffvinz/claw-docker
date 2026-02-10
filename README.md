@@ -1,4 +1,4 @@
-# OpenClaw Docker 部署
+# OpenClaw Docker 部署 🦞
 
 通过 Docker Compose 一键部署 OpenClaw AI 助手，集成 Azure OpenAI 和 GitHub Copilot 模型。
 
@@ -6,16 +6,19 @@
 
 ```
 飞书/Web ──→ OpenClaw ──→ LiteLLM ──→ Azure OpenAI (GPT 5.2)
-                             │
-                             └──→ Copilot Proxy ──→ GitHub Copilot
-                                                     ├─ Claude Opus 4.6
-                                                     ├─ Claude Opus 4.5
-                                                     └─ Claude Sonnet 4.5
+                │            │
+                │            └──→ Copilot Proxy ──→ GitHub Copilot
+                │                                    ├─ Claude Opus 4.6
+                │                                    ├─ Claude Opus 4.5
+                │                                    └─ Claude Sonnet 4.5
+                │
+                ├──→ Notion API（读写页面/数据库）
+                └──→ GitHub（workspace 自动备份）
 ```
 
 | 服务 | 作用 | 端口 |
 |------|------|------|
-| **openclaw** | AI 助手主体（飞书集成、网关） | 18789 (localhost) |
+| **openclaw** | AI 助手主体（飞书集成、网关） | 18789 |
 | **litellm** | 统一模型网关，多模型路由 | 4000 (内部) |
 | **copilot-proxy** | GitHub Copilot API 代理 | 3001 (localhost) |
 | **postgres** | LiteLLM 数据库 | 5432 (内部) |
@@ -30,26 +33,29 @@ cp .env.example .env
 
 编辑 `.env` 填入必填项：
 
-| 变量 | 说明 | 获取方式 |
-|------|------|----------|
-| `GITHUB_TOKEN` | GitHub PAT | [github.com/settings/tokens](https://github.com/settings/tokens) |
-| `AZURE_OPENAI_API_KEY` | Azure OpenAI 密钥 | Azure Portal |
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI 端点 | Azure Portal |
-| `FEISHU_APP_ID` | 飞书 App ID | [open.feishu.cn](https://open.feishu.cn) |
-| `FEISHU_APP_SECRET` | 飞书 App Secret | [open.feishu.cn](https://open.feishu.cn) |
+| 变量 | 必填 | 说明 | 获取方式 |
+|------|------|------|----------|
+| `GITHUB_TOKEN` | ✅ | GitHub PAT（copilot-proxy 引导用） | [github.com/settings/tokens](https://github.com/settings/tokens) |
+| `COPILOT_PROXY_TOKEN` | ✅ | OAuth token（首次部署后通过 Web UI 生成） | 见下方步骤 3 |
+| `AZURE_OPENAI_API_KEY` | ✅ | Azure OpenAI 密钥 | Azure Portal |
+| `AZURE_OPENAI_ENDPOINT` | ✅ | Azure OpenAI 端点 | Azure Portal |
+| `AZURE_OPENAI_MODEL` | ✅ | Azure 模型名 | Azure Portal |
+| `FEISHU_APP_ID` | ✅ | 飞书 App ID | [open.feishu.cn](https://open.feishu.cn) |
+| `FEISHU_APP_SECRET` | ✅ | 飞书 App Secret | [open.feishu.cn](https://open.feishu.cn) |
+| `NOTION_API_KEY` | 可选 | Notion Integration API Key | [notion.so/my-integrations](https://notion.so/my-integrations) |
+| `GITHUB_PAT` | 可选 | GitHub PAT（workspace 备份用） | [github.com/settings/tokens](https://github.com/settings/tokens) |
 
-### 2. 一键部署
+### 2. 启动服务
 
 ```bash
-chmod +x start.sh
-./start.sh
+docker compose up -d
 ```
 
-脚本会自动：
-- 检查 Docker 环境
-- 生成内部密钥（LiteLLM Master Key、Gateway Token 等）
-- 启动所有服务
-- 注册模型到 OpenClaw
+首次启动会自动：
+- 拉取所有镜像
+- 创建 Docker 内部网络
+- 初始化 PostgreSQL 数据库
+- 运行 `init-workspace.sh` 配置 OpenClaw 容器环境
 
 ### 3. 配置 Copilot Proxy Token
 
@@ -70,7 +76,7 @@ http://localhost:3001
 docker compose restart litellm
 ```
 
-> **注意**: `ghu_` token 有效期有限（约 30 分钟），过期后需重新生成。
+> ⚠️ `ghu_` token 有效期有限（约 30 分钟），过期后需重新生成。
 
 ### 4. 配置飞书
 
@@ -96,21 +102,63 @@ ssh -L 18789:127.0.0.1:18789 user@your-server
 
 默认模型：`openai/claude-opus-4-6`
 
+## 第三方集成
+
+### Notion
+
+OpenClaw 通过 Notion API 读写你的 Notion 页面和数据库。
+
+**配置步骤：**
+1. 访问 [notion.so/my-integrations](https://notion.so/my-integrations) 创建 Integration
+2. Capabilities 勾选：Read content、Update content、Insert content
+3. 复制 API Key（`ntn_` 开头）填入 `.env` 的 `NOTION_API_KEY`
+4. 在 Notion 中给目标页面/数据库授权：页面右上角 `⋯` → Connect to → 选择你的 Integration
+
+> 💡 授权一个顶层页面，其下所有子页面和数据库都自动可访问。
+
+### Workspace Git 备份
+
+OpenClaw 每天自动将 workspace 提交并推送到 GitHub。
+
+**配置步骤：**
+1. 创建 GitHub repo（如 `openclaw-workspace`）
+2. 生成 Fine-grained PAT，仅授权该 repo 的 Contents 读写权限
+3. 填入 `.env` 的 `GITHUB_PAT`
+4. `init-workspace.sh` 会在每次启动时自动更新 Git remote URL 中的 PAT
+
+> ⚠️ PAT 过期后需更新 `.env` 并重启 OpenClaw 容器。
+
+## 数据持久化
+
+所有运行时数据通过 Docker volume 挂载到 `./data/` 目录：
+
+```
+data/
+├── postgres/        # LiteLLM 数据库
+├── litellm/         # LiteLLM 运行时数据
+├── copilot-proxy/   # Copilot OAuth token 存储
+└── openclaw/        # ⭐ OpenClaw 核心数据
+    ├── config/      # Gateway 配置
+    └── workspace/   # Agent workspace（记忆、文件、Git 仓库）
+```
+
+**重启安全性：**
+- ✅ Workspace（记忆、文件、cron 任务）→ 在 volume 内，重启不丢
+- ✅ Gateway 配置 → 在 volume 内，重启不丢
+- ✅ Notion/Git 凭证 → 通过 `.env` + `init-workspace.sh` 每次启动注入
+- ⚠️ `.env` 文件本身 → 在宿主机上，需要自行备份
+
 ## 文件结构
 
 ```
 .
 ├── docker-compose.yml     # 服务编排（4 个服务）
 ├── litellm_config.yaml    # LiteLLM 模型配置
-├── init-workspace.sh      # OpenClaw 容器初始化脚本（配置 Notion/Git 等）
+├── init-workspace.sh      # OpenClaw 容器初始化脚本（配置 Notion/Git 凭证）
 ├── .env.example           # 环境变量模板
-├── .env                   # 实际配置（不入 Git）
+├── .env                   # 实际配置（⚠️ 不入 Git，自行备份）
 ├── .gitignore
 └── data/                  # 持久化数据（不入 Git）
-    ├── postgres/
-    ├── litellm/
-    ├── copilot-proxy/
-    └── openclaw/          # OpenClaw workspace + 配置（重启不丢）
 ```
 
 ## 常用命令
@@ -122,10 +170,12 @@ docker compose ps
 # 查看日志
 docker compose logs -f openclaw
 docker compose logs -f litellm
-docker compose logs -f copilot-proxy
 
-# 重启服务
+# 重启单个服务
 docker compose restart openclaw
+
+# 更新到最新镜像
+docker compose pull && docker compose up -d
 
 # 停止所有服务
 docker compose down
@@ -134,19 +184,29 @@ docker compose down
 docker compose exec openclaw node dist/index.js models list --all
 ```
 
-## 安全说明
+## 更新流程
 
-1. **所有端口仅绑定 `127.0.0.1`**，不暴露到公网，通过 SSH 隧道访问
-2. **`.env` 已被 `.gitignore` 排除**，敏感信息不会提交到 Git
-3. **内部密钥自动生成**，无需手动创建
-4. **服务间通信通过 Docker 内部网络**，不经过宿主机
-5. **Copilot Proxy Token 有时效性**，即使泄露影响有限
+```bash
+git pull                          # 拉取最新配置
+docker compose pull               # 拉取最新镜像
+docker compose up -d              # 重启（workspace 数据不丢）
+```
 
 ## 迁移到新服务器
 
 ```bash
 # 在新服务器上
-scp -r user@old-server:~/claw-docker/data ./data     # 迁移数据
+git clone https://github.com/yzffvinz/claw-docker.git
+cd claw-docker
 scp user@old-server:~/claw-docker/.env ./.env          # 迁移配置
-./start.sh                                             # 启动服务
+scp -r user@old-server:~/claw-docker/data ./data       # 迁移数据
+docker compose up -d                                    # 启动
 ```
+
+## 安全说明
+
+1. 端口仅绑定 `127.0.0.1`（除飞书 webhook 端口），通过 SSH 隧道访问
+2. `.env` 已被 `.gitignore` 排除，敏感信息不会提交
+3. 服务间通过 Docker 内部网络通信，不经过宿主机
+4. Copilot Proxy Token 有时效性，即使泄露影响有限
+5. Notion/GitHub PAT 建议使用最小权限原则

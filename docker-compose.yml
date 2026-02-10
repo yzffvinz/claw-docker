@@ -101,8 +101,12 @@ services:
       OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
       OPENAI_API_BASE: http://litellm:4000
       ANTHROPIC_API_KEY: ${LITELLM_MASTER_KEY}
+      # 第三方集成（通过 .env 配置）
+      NOTION_API_KEY: ${NOTION_API_KEY:-}
+      GITHUB_PAT: ${GITHUB_PAT:-}
     volumes:
       - ./data/openclaw:/home/node/.openclaw
+      - ./init-workspace.sh:/home/node/init-workspace.sh:ro
     ports:
       # Gateway 端口（飞书 webhook 需要公网访问，不能绑定 localhost）
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
@@ -116,14 +120,9 @@ services:
         soft: 65536
         hard: 65536
     command:
-      - "node"
-      - "dist/index.js"
-      - "gateway"
-      - "--bind"
-      - "lan"
-      - "--port"
-      - "18789"
-      - "--allow-unconfigured"
+      - "sh"
+      - "-c"
+      - "/home/node/init-workspace.sh && node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured"
     healthcheck:
       test: ["CMD", "node", "dist/index.js", "health"]
       interval: 30s

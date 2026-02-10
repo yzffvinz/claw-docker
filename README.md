@@ -102,8 +102,7 @@ ssh -L 18789:127.0.0.1:18789 user@your-server
 .
 ├── docker-compose.yml     # 服务编排（4 个服务）
 ├── litellm_config.yaml    # LiteLLM 模型配置
-├── init-models.py         # OpenClaw 模型注册脚本
-├── start.sh               # 一键部署脚本
+├── init-workspace.sh      # OpenClaw 容器初始化脚本（配置 Notion/Git 等）
 ├── .env.example           # 环境变量模板
 ├── .env                   # 实际配置（不入 Git）
 ├── .gitignore
@@ -111,7 +110,7 @@ ssh -L 18789:127.0.0.1:18789 user@your-server
     ├── postgres/
     ├── litellm/
     ├── copilot-proxy/
-    └── openclaw/
+    └── openclaw/          # OpenClaw workspace + 配置（重启不丢）
 ```
 
 ## 常用命令

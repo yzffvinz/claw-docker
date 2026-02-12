@@ -7,10 +7,12 @@
 ```
 飞书/Web ──→ OpenClaw ──→ LiteLLM ──→ Azure OpenAI (GPT 5.2)
                 │            │
-                │            └──→ Copilot Proxy ──→ GitHub Copilot
-                │                                    ├─ Claude Opus 4.6
-                │                                    ├─ Claude Opus 4.5
-                │                                    └─ Claude Sonnet 4.5
+                │            ├──→ Copilot Proxy ──→ GitHub Copilot
+                │            │                      ├─ Claude Opus 4.6
+                │            │                      ├─ Claude Opus 4.5
+                │            │                      └─ Claude Sonnet 4.5
+                │            │
+                │            └──→ Embedding API (text-embedding-3-small)
                 │
                 ├──→ Notion API（读写页面/数据库）
                 └──→ GitHub（workspace 自动备份）
@@ -44,6 +46,8 @@ cp .env.example .env
 | `FEISHU_APP_SECRET` | ✅ | 飞书 App Secret | [open.feishu.cn](https://open.feishu.cn) |
 | `NOTION_API_KEY` | 可选 | Notion Integration API Key | [notion.so/my-integrations](https://notion.so/my-integrations) |
 | `GITHUB_PAT` | 可选 | GitHub PAT（workspace 备份用） | [github.com/settings/tokens](https://github.com/settings/tokens) |
+| `EMBEDDING_API_BASE` | 可选 | Embedding 服务地址（OpenAI 兼容） | 自行部署 |
+| `EMBEDDING_API_KEY` | 可选 | Embedding 服务 API Key | 自行部署 |
 
 ### 2. 启动服务
 
@@ -99,8 +103,11 @@ ssh -L 18789:127.0.0.1:18789 user@your-server
 | `openai/claude-opus-4-5` | GitHub Copilot | 200K |
 | `openai/claude-sonnet-4-5` | GitHub Copilot | 200K |
 | `openai/azure-gpt-5-2` | Azure OpenAI | 128K |
+| `text-embedding-3-small` | 自行部署 | — |
 
 默认模型：`openai/claude-opus-4-6`
+
+> 💡 `text-embedding-3-small` 用于 OpenClaw 的 `memory_search` 语义向量检索，需在 `.env` 中配置 `EMBEDDING_API_BASE` 和 `EMBEDDING_API_KEY`。
 
 ## 第三方集成
 

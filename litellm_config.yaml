@@ -56,3 +56,13 @@ model_list:
     model_info:
       max_input_tokens: 125000
       max_output_tokens: 8192
+
+  # ----------------------------------------
+  # OpenAI text-embedding-3-small (独立部署)
+  # 用于 OpenClaw memory_search 向量检索
+  # ----------------------------------------
+  - model_name: text-embedding-3-small
+    litellm_params:
+      model: openai/text-embedding-3-small
+      api_base: ${EMBEDDING_API_BASE}
+      api_key: ${EMBEDDING_API_KEY}

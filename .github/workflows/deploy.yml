@@ -6,7 +6,6 @@ on:
     paths:
       - 'docker-compose.yml'
       - 'litellm_config.yaml'
-      - 'scripts/**'
       - '.github/workflows/deploy.yml'
 
 concurrency:

@@ -1,0 +1,16 @@
+name: Check Env Sync
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker-compose.yml'
+      - '.env.example'
+
+jobs:
+  check-env:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check .env.example matches docker-compose.yml
+        run: bash scripts/check-env-sync.sh

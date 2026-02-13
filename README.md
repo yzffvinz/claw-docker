@@ -191,13 +191,92 @@ docker compose down
 docker compose exec openclaw node dist/index.js models list --all
 ```
 
+## CI/CD 自动部署
+
+项目通过 **GitHub Actions + Self-hosted Runner** 实现自动部署：当 `docker-compose.yml`、`litellm_config.yaml` 或 workflow 文件变更并合入 `main` 时，自动在服务器上执行 `docker compose up`。
+
+### 架构
+
+```
+GitHub (push to main) ──→ GitHub Actions ──→ Self-hosted Runner (你的服务器)
+                                                   │
+                                                   ├─ git pull
+                                                   ├─ docker compose pull
+                                                   └─ docker compose up -d
+```
+
+### Self-hosted Runner 安装
+
+```bash
+# 1. 在 GitHub repo → Settings → Actions → Runners → New self-hosted runner
+# 2. 按提示在服务器上安装
+mkdir ~/actions-runner && cd ~/actions-runner
+curl -o actions-runner-linux-x64-2.322.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.322.0/actions-runner-linux-x64-2.322.0.tar.gz
+tar xzf ./actions-runner-linux-x64-2.322.0.tar.gz
+./config.sh --url https://github.com/yzffvinz/claw-docker --token <YOUR_TOKEN>
+
+# 3. 注册为系统服务（开机自启）
+sudo ./svc.sh install
+sudo ./svc.sh start
+```
+
+### Runner 管理
+
+```bash
+# 查看状态
+sudo ./svc.sh status
+
+# 查看日志
+journalctl -u actions.runner.* -f
+
+# 重启
+sudo ./svc.sh stop && sudo ./svc.sh start
+```
+
+### 触发规则
+
+只有以下文件变更才会触发部署（其他文件如 README、scripts 不会触发）：
+- `docker-compose.yml`
+- `litellm_config.yaml`
+- `.github/workflows/**`
+
+### 分支保护
+
+`main` 分支已配置 Ruleset：
+- ✅ **Require PR before merging** — 所有变更必须通过 PR，不能直接 push
+- ✅ **Block force pushes** — 禁止 force push
+- ✅ **Restrict deletions** — 禁止删除 main 分支
+- Required approvals: 1
+
+### 工作流程
+
+```bash
+# 1. 创建分支
+git checkout -b feat/your-change
+
+# 2. 修改 + 提交
+git add . && git commit -m "✨ your change"
+
+# 3. 推送 + 创建 PR
+git push -u origin feat/your-change
+# 在 GitHub 上创建 PR → Review → Merge
+
+# 4. 合入后自动部署（如果触发路径匹配）
+```
+
 ## 更新流程
+
+### 手动更新
 
 ```bash
 git pull                          # 拉取最新配置
 docker compose pull               # 拉取最新镜像
 docker compose up -d              # 重启（workspace 数据不丢）
 ```
+
+### 自动更新（推荐）
+
+通过 PR 合入 main，GitHub Actions 自动完成上述步骤。
 
 ## 迁移到新服务器
 

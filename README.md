@@ -355,7 +355,7 @@ du -sh /var/lib/docker/containers/*/*-json.log
 
 ### 新增环境变量后忘记更新 .env.example
 
-**症状**：改了 `docker-compose.yml` 加了新变量，但 `.env.example` 没同步
+**场景 1（开发者）**：改了 `docker-compose.yml` 加了新变量，但 `.env.example` 没同步
 
 ```bash
 # 运行检查脚本
@@ -364,7 +364,16 @@ bash scripts/check-env-sync.sh
 # 输出示例：
 # ❌ docker-compose.yml 引用了 .env.example 中缺失的变量:
 #   - NEW_VAR_NAME
-# 补上缺失的变量到 .env.example 即可
+# → 补上缺失的变量到 .env.example
+```
+
+**场景 2（使用者）**：更新代码后服务启动报错，可能是 `.env` 缺少新变量
+
+```bash
+# 对比你的 .env 和最新的 .env.example
+diff <(grep -oP '^\w+(?==)' .env | sort) <(grep -oP '^\w+(?==)' .env.example | sort)
+
+# 把 .env.example 中新增的变量补到你的 .env 里
 ```
 
 ### Git 备份 push 失败

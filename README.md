@@ -353,6 +353,20 @@ docker container prune -f
 du -sh /var/lib/docker/containers/*/*-json.log
 ```
 
+### 新增环境变量后忘记更新 .env.example
+
+**症状**：改了 `docker-compose.yml` 加了新变量，但 `.env.example` 没同步
+
+```bash
+# 运行检查脚本
+bash scripts/check-env-sync.sh
+
+# 输出示例：
+# ❌ docker-compose.yml 引用了 .env.example 中缺失的变量:
+#   - NEW_VAR_NAME
+# 补上缺失的变量到 .env.example 即可
+```
+
 ### Git 备份 push 失败
 
 **症状**：cron 日志报 push 错误

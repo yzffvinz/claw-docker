@@ -127,6 +127,7 @@ services:
       # 第三方集成（通过 .env 配置）
       NOTION_API_KEY: ${NOTION_API_KEY:-}
       GITHUB_PAT: ${GITHUB_PAT:-}
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
     volumes:
       - ./data/openclaw:/home/node/.openclaw
     ports:

@@ -289,6 +289,94 @@ scp -r user@old-server:~/claw-docker/data ./data       # 迁移数据
 docker compose up -d                                    # 启动
 ```
 
+## Troubleshooting
+
+### Copilot Proxy Token 过期
+
+**症状**：模型调用报 401/403，日志显示 token invalid
+
+```bash
+# 1. SSH 隧道连到 copilot-proxy
+ssh -L 3001:127.0.0.1:3001 user@your-server
+
+# 2. 浏览器打开 http://localhost:3001，重新 Generate Token
+# 3. 更新 .env 中的 COPILOT_PROXY_TOKEN
+# 4. 重启
+docker compose restart litellm
+```
+
+### OpenClaw memory_search 不工作
+
+**症状**：`memory_search` 报错或返回空结果
+
+```bash
+# 检查 embedding 服务是否可达
+docker compose exec openclaw curl -s $EMBEDDING_API_BASE/models
+
+# 确认 .env 中配置了：
+# EMBEDDING_API_BASE=https://your-embedding-service
+# EMBEDDING_API_KEY=your-key
+```
+
+### 飞书 Webhook 收不到消息
+
+**症状**：飞书发消息没反应
+
+```bash
+# 1. 检查 OpenClaw 是否在运行
+docker compose ps
+
+# 2. 检查日志
+docker compose logs -f openclaw | grep feishu
+
+# 3. 确认飞书开放平台的事件订阅 URL 正确
+# URL: http://YOUR_SERVER_IP:18789/webhook/feishu
+
+# 4. 确认服务器防火墙开放了 18789 端口
+```
+
+### Docker 磁盘空间不足
+
+**症状**：`df` 显示磁盘增长很快
+
+```bash
+# 查看 Docker 占用
+docker system df
+
+# 清理悬空镜像和构建缓存
+docker system prune -f
+
+# 清理停止的容器
+docker container prune -f
+
+# 查看日志文件大小（常见元凶）
+du -sh /var/lib/docker/containers/*/*-json.log
+```
+
+### Git 备份 push 失败
+
+**症状**：cron 日志报 push 错误
+
+```bash
+# 检查 PAT 是否过期
+docker compose exec openclaw git -C /home/node/.openclaw/workspace remote -v
+
+# 更新 PAT：修改 .env 中的 GITHUB_PAT，然后重启
+docker compose restart openclaw
+```
+
+### 服务启动后立即退出
+
+```bash
+# 查看退出原因
+docker compose logs openclaw | tail -50
+
+# 常见原因：
+# - .env 缺少必填变量 → 对照 .env.example 补全
+# - 端口被占用 → lsof -i :18789
+# - 数据目录权限问题 → chown -R 1000:1000 data/openclaw
+```
+
 ## 安全说明
 
 1. 端口仅绑定 `127.0.0.1`（除飞书 webhook 端口），通过 SSH 隧道访问

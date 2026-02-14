@@ -1,0 +1,36 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "config_store": {
+    "enabled": true,
+    "type": "sqlite",
+    "config": {
+      "path": "/app/data/config.db"
+    }
+  },
+  "logs_store": {
+    "enabled": false
+  },
+  "auth_config": {
+    "is_enabled": false,
+    "disable_auth_on_inference": true
+  },
+  "providers": {
+    "copilot": {
+      "keys": [
+        {
+          "name": "copilot-proxy",
+          "value": "_",
+          "weight": 1
+        }
+      ],
+      "network_config": {
+        "base_url": "http://copilot-proxy:4141",
+        "max_retries": 2
+      },
+      "custom_provider_config": {
+        "base_provider_type": "openai",
+        "is_key_less": false
+      }
+    }
+  }
+}

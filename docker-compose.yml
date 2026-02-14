@@ -1,37 +1,12 @@
 services:
   # ============================================
-  # PostgreSQL - LiteLLM 数据库
-  # ============================================
-  postgres:
-    image: postgres:16-alpine
-    container_name: postgres
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-    environment:
-      POSTGRES_DB: litellm
-      POSTGRES_USER: litellm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-    networks:
-      - openclaw-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U litellm"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ============================================
-  # Coxy - GitHub Copilot API 代理 (原 copilot-proxy 升级版)
+  # copilot-api - GitHub Copilot API 代理
   # 提供 OpenAI 兼容接口访问 GitHub Copilot 模型
-  # https://github.com/coxy-proxy/coxy
+  # https://github.com/ericc-ch/copilot-api
   # ============================================
   copilot-proxy:
-    image: ghcr.io/coxy-proxy/coxy:latest
+    build:
+      context: https://github.com/ericc-ch/copilot-api.git#v0.7.0
     container_name: copilot-proxy
     restart: unless-stopped
     logging:
@@ -40,62 +15,52 @@ services:
         max-size: "50m"
         max-file: "3"
     environment:
-      PORT: "3000"
-      LOG_LEVEL: info
-      DATABASE_URL: "file:/app/data/coxy.db"
+      GH_TOKEN: ${COPILOT_PROXY_TOKEN}
     volumes:
-      - ./data/coxy:/app/data
+      - ./data/copilot-api:/root/.local/share/copilot-api
     ports:
-      # 仅绑定 localhost，通过 SSH 隧道访问 Web UI 管理 token
-      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:4141:4141"
     networks:
       - openclaw-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/models', function(r) { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', function() { process.exit(1); });"]
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:4141/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
 
   # ============================================
-  # LiteLLM - 统一 AI 模型网关
-  # 将 Azure OpenAI / GitHub Copilot 统一为 OpenAI 兼容 API
+  # Bifrost - 高性能 AI 模型网关
+  # 统一路由 GitHub Copilot 模型（通过 copilot-api）
+  # https://github.com/maximhq/bifrost
   # ============================================
-  litellm:
-    image: ghcr.io/berriai/litellm:main-latest
-    container_name: litellm
+  bifrost:
+    image: maximhq/bifrost:latest
+    container_name: bifrost
     restart: unless-stopped
     logging:
       driver: json-file
       options:
         max-size: "50m"
         max-file: "3"
-    command: ["--config", "/app/config/litellm_config.yaml"]
     environment:
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
-      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
-      STORE_MODEL_IN_DB: "False"
-      # Coxy 使用 dummy token "_"，无需传入实际 token
-      # Embedding 模型（独立部署的 text-embedding-3-small）
-      EMBEDDING_API_BASE: ${EMBEDDING_API_BASE}
-      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY}
+      APP_PORT: "8080"
+      APP_HOST: "0.0.0.0"
+      LOG_LEVEL: "info"
     volumes:
-      - ./data/litellm:/app/data
-      - ./litellm_config.yaml:/app/config/litellm_config.yaml:ro
+      - ./data/bifrost:/app/data
+      - ./bifrost_config.json:/app/data/config.json:ro
     networks:
       - openclaw-network
     depends_on:
-      postgres:
-        condition: service_healthy
       copilot-proxy:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(1); result=s.connect_ex(('localhost', 4000)); s.close(); exit(0 if result == 0 else 1)\""]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/v1/models || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 10s
 
   # ============================================
   # OpenClaw - AI 助手主体
@@ -117,10 +82,10 @@ services:
       OPENCLAW_GATEWAY_MODE: local
       FEISHU_APP_ID: ${FEISHU_APP_ID}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET}
-      # 所有模型请求通过 LiteLLM 代理
-      OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
-      OPENAI_API_BASE: http://litellm:4000
-      ANTHROPIC_API_KEY: ${LITELLM_MASTER_KEY}
+      # 所有模型请求通过 Bifrost 网关
+      OPENAI_API_KEY: "_"
+      OPENAI_API_BASE: http://bifrost:8080
+      ANTHROPIC_API_KEY: "_"
       # 第三方集成（通过 .env 配置）
       NOTION_API_KEY: ${NOTION_API_KEY:-}
       GITHUB_PAT: ${GITHUB_PAT:-}
@@ -133,8 +98,8 @@ services:
     networks:
       - openclaw-network
     depends_on:
-      litellm:
-        condition: service_started
+      bifrost:
+        condition: service_healthy
     ulimits:
       nofile:
         soft: 65536

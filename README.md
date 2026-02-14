@@ -1,16 +1,16 @@
 # OpenClaw Docker 部署 🦞
 
-通过 Docker Compose 一键部署 OpenClaw AI 助手，通过 Coxy 代理访问 GitHub Copilot 模型。
+通过 Docker Compose 一键部署 OpenClaw AI 助手，通过 copilot-api 代理访问 GitHub Copilot 模型。
 
 ## 架构
 
 ```
-飞书/Web ──→ OpenClaw ──→ LiteLLM ──→ Coxy ──→ GitHub Copilot
-                │            │                   ├─ Claude Opus 4.6
-                │            │                   ├─ Claude Sonnet 4.5
-                │            │                   └─ GPT-5.2
-                │            │
-                │            └──→ Embedding API (text-embedding-3-small)
+飞书/Web ──→ OpenClaw ──→ Bifrost ──→ copilot-api ──→ GitHub Copilot
+                │                                      ├─ Claude Opus 4.6
+                │                                      ├─ GPT-5.2
+                │                                      ├─ Gemini 3 Pro
+                │                                      ├─ Gemini 3 Flash
+                │                                      └─ text-embedding-3-small
                 │
                 ├──→ Notion API（读写页面/数据库）
                 └──→ GitHub（workspace 自动备份）
@@ -19,9 +19,8 @@
 | 服务 | 作用 | 端口 |
 |------|------|------|
 | **openclaw** | AI 助手主体（飞书集成、网关） | 18789 |
-| **litellm** | 统一模型网关，多模型路由 | 4000 (内部) |
-| **copilot-proxy** | Coxy — GitHub Copilot API 代理 | 3001 (localhost) |
-| **postgres** | LiteLLM 数据库 | 5432 (内部) |
+| **bifrost** | 高性能 AI 模型网关（Go，<100µs 开销） | 8080 (内部) |
+| **copilot-proxy** | copilot-api — GitHub Copilot API 代理 | 4141 (localhost) |
 
 ## 快速开始
 
@@ -35,17 +34,13 @@ cp .env.example .env
 
 | 变量 | 必填 | 说明 | 获取方式 |
 |------|------|------|----------|
+| `COPILOT_PROXY_TOKEN` | ✅ | GitHub Copilot Token（copilot-api 认证） | `docker compose run --rm copilot-proxy /entrypoint.sh --auth` |
 | `FEISHU_APP_ID` | ✅ | 飞书 App ID | [open.feishu.cn](https://open.feishu.cn) |
 | `FEISHU_APP_SECRET` | ✅ | 飞书 App Secret | [open.feishu.cn](https://open.feishu.cn) |
-| `LITELLM_MASTER_KEY` | 自动生成 | LiteLLM API 网关密钥 | 32 位随机字符串 |
-| `LITELLM_SALT_KEY` | 自动生成 | LiteLLM 加密盐值 | 32 位随机字符串 |
-| `POSTGRES_PASSWORD` | 自动生成 | PostgreSQL 密码 | 32 位随机字符串 |
 | `OPENCLAW_GATEWAY_TOKEN` | 自动生成 | 控制台访问 Token | 32 位随机字符串 |
 | `NOTION_API_KEY` | 可选 | Notion Integration API Key | [notion.so/my-integrations](https://notion.so/my-integrations) |
 | `GITHUB_PAT` | 可选 | GitHub PAT（workspace 备份用） | [github.com/settings/tokens](https://github.com/settings/tokens) |
 | `BRAVE_API_KEY` | 可选 | Brave Search API Key（web_search 工具） | [brave.com/search/api](https://brave.com/search/api/) |
-| `EMBEDDING_API_BASE` | 可选 | Embedding 服务地址（OpenAI 兼容） | 自行部署 |
-| `EMBEDDING_API_KEY` | 可选 | Embedding 服务 API Key | 自行部署 |
 
 ### 2. 启动服务
 
@@ -56,23 +51,21 @@ docker compose up -d
 首次启动会自动：
 - 拉取所有镜像
 - 创建 Docker 内部网络
-- 初始化 PostgreSQL 数据库
+- 构建 copilot-api 镜像
 
-### 3. 配置 Coxy Token
+### 3. 配置 Copilot Token
 
-GitHub Copilot 需要通过 OAuth 流程获取 token，由 Coxy 内部管理：
+copilot-api 需要通过设备授权码流程获取 GitHub Copilot Token（`ghu_` 前缀）：
 
 ```bash
-# 本地建立 SSH 隧道
-ssh -L 3001:127.0.0.1:3001 user@your-server -N
+# 运行 auth 流程获取 token
+docker compose run --rm copilot-proxy /entrypoint.sh --auth
 
-# 浏览器打开
-http://localhost:3001
+# 按提示在浏览器中完成 GitHub 设备授权
+# 将生成的 token 填入 .env 的 COPILOT_PROXY_TOKEN
 ```
 
-在 Web UI 中：用 GitHub 登录 → **Generate Token** → **Set as Default**。
-
-> ⚠️ Token 有效期有限，过期后需重新在 Web UI 中生成。无需修改 `.env` 或重启服务。
+> ⚠️ Token 过期后需重新执行 auth 流程并更新 `.env` 中的 `COPILOT_PROXY_TOKEN`，然后重启 copilot-proxy 服务。
 
 ### 4. 配置飞书
 
@@ -91,14 +84,15 @@ ssh -L 18789:127.0.0.1:18789 user@your-server
 
 | 模型名称 | 来源 | 用途 |
 |----------|------|------|
-| `claude-opus-4-6` | GitHub Copilot (Coxy) | 主力模型 |
-| `claude-sonnet-4-5` | GitHub Copilot (Coxy) | 快速模型，日常任务首选 |
-| `gpt-5-2` | GitHub Copilot (Coxy) | 通用模型 |
-| `text-embedding-3-small` | Azure OpenAI | 向量检索（memory_search） |
+| `claude-opus-4.6` | GitHub Copilot (copilot-api) | 主力模型 |
+| `gpt-5.2` | GitHub Copilot (copilot-api) | 通用模型 |
+| `gemini-3-pro-preview` | GitHub Copilot (copilot-api) | Google 旗舰模型 |
+| `gemini-3-flash-preview` | GitHub Copilot (copilot-api) | Google 快速模型 |
+| `text-embedding-3-small` | GitHub Copilot (copilot-api) | 向量检索（memory_search） |
 
-模型配置在 `litellm_config.yaml` 中管理，`STORE_MODEL_IN_DB` 已关闭，不支持通过 API 动态添加模型。
+Bifrost 网关使用 `copilot/<模型名>` 格式路由请求。模型配置在 `bifrost_config.json` 中管理，定义了 `copilot` 自定义 Provider 指向 copilot-api。
 
-> 💡 `text-embedding-3-small` 用于 OpenClaw 的 `memory_search` 语义向量检索，需在 `.env` 中配置 `EMBEDDING_API_BASE` 和 `EMBEDDING_API_KEY`。
+> 💡 所有模型均通过 copilot-api 代理访问 GitHub Copilot，无需额外配置 API Key。Bifrost 使用 `_` 作为 dummy key，copilot-api 内部管理 Copilot 认证。
 
 ## 第三方集成
 
@@ -132,9 +126,8 @@ OpenClaw 每天自动将 workspace 提交并推送到 GitHub。
 
 ```
 data/
-├── postgres/        # LiteLLM 数据库
-├── litellm/         # LiteLLM 运行时数据
-├── copilot-proxy/   # Coxy 数据（OAuth token、SQLite DB）
+├── bifrost/         # Bifrost 网关数据（SQLite）
+├── copilot-api/     # copilot-api 数据（GitHub token）
 └── openclaw/        # ⭐ OpenClaw 核心数据
     ├── config/      # Gateway 配置
     └── workspace/   # Agent workspace（记忆、文件、Git 仓库）
@@ -143,7 +136,7 @@ data/
 **重启安全性：**
 - ✅ Workspace（记忆、文件、cron 任务）→ 在 volume 内，重启不丢
 - ✅ Gateway 配置 → 在 volume 内，重启不丢
-- ✅ Coxy token → 在 volume 内（`data/coxy/coxy.db`），重启不丢
+- ✅ copilot-api 数据 → 在 volume 内，重启不丢
 - ✅ Notion/Git 凭证 → 通过 `.env` 注入
 - ⚠️ `.env` 文件本身 → 在宿主机上，需要自行备份
 
@@ -151,8 +144,8 @@ data/
 
 ```
 .
-├── docker-compose.yml     # 服务编排（4 个服务）
-├── litellm_config.yaml    # LiteLLM 模型配置
+├── docker-compose.yml     # 服务编排（3 个服务）
+├── bifrost_config.json    # Bifrost 网关配置（copilot Provider）
 ├── .env.example           # 环境变量模板
 ├── .env                   # 实际配置（⚠️ 不入 Git，自行备份）
 ├── scripts/               # 工具脚本
@@ -169,7 +162,7 @@ docker compose ps
 
 # 查看日志
 docker compose logs -f openclaw
-docker compose logs -f litellm
+docker compose logs -f bifrost
 
 # 重启单个服务
 docker compose restart openclaw
@@ -186,7 +179,7 @@ docker compose exec openclaw node dist/index.js models list --all
 
 ## CI/CD 自动部署
 
-项目通过 **GitHub Actions + Self-hosted Runner** 实现自动部署：当 `docker-compose.yml`、`litellm_config.yaml` 或 workflow 文件变更并合入 `main` 时，自动在服务器上执行 `docker compose up`。
+项目通过 **GitHub Actions + Self-hosted Runner** 实现自动部署：当 `docker-compose.yml`、`bifrost_config.json` 或 workflow 文件变更并合入 `main` 时，自动在服务器上执行 `docker compose up`。
 
 ### 架构
 
@@ -230,7 +223,7 @@ sudo ./svc.sh stop && sudo ./svc.sh start
 
 只有以下文件变更才会触发部署（其他文件如 README、scripts 不会触发）：
 - `docker-compose.yml`
-- `litellm_config.yaml`
+- `bifrost_config.json`
 - `.github/workflows/**`
 
 ### 分支保护
@@ -284,16 +277,18 @@ docker compose up -d                                    # 启动
 
 ## Troubleshooting
 
-### Coxy Token 过期
+### copilot-api Token 过期
 
 **症状**：模型调用报 401/403，日志显示 token invalid
 
 ```bash
-# 1. SSH 隧道连到 Coxy Web UI
-ssh -L 3001:127.0.0.1:3001 user@your-server -N
+# 1. 重新生成 Copilot Token
+docker compose run --rm copilot-proxy /entrypoint.sh --auth
 
-# 2. 浏览器打开 http://localhost:3001，重新 Generate Token → Set as Default
-# 无需修改 .env 或重启服务
+# 2. 更新 .env 中的 COPILOT_PROXY_TOKEN
+
+# 3. 重启 copilot-proxy
+docker compose restart copilot-proxy
 ```
 
 ### OpenClaw memory_search 不工作
@@ -301,12 +296,14 @@ ssh -L 3001:127.0.0.1:3001 user@your-server -N
 **症状**：`memory_search` 报错或返回空结果
 
 ```bash
-# 检查 embedding 服务是否可达
-docker compose exec openclaw curl -s $EMBEDDING_API_BASE/models
+# 检查 copilot-api embedding 是否可用
+curl -s http://localhost:4141/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer _' \
+  -d '{"model":"text-embedding-3-small","input":["test"]}' | head -c 200
 
-# 确认 .env 中配置了：
-# EMBEDDING_API_BASE=https://your-embedding-service
-# EMBEDDING_API_KEY=your-key
+# 检查 copilot-proxy 是否健康
+docker compose ps copilot-proxy
 ```
 
 ### 飞书 Webhook 收不到消息
@@ -396,5 +393,6 @@ docker compose logs openclaw | tail -50
 1. 端口仅绑定 `127.0.0.1`（除飞书 webhook 端口），通过 SSH 隧道访问
 2. `.env` 已被 `.gitignore` 排除，敏感信息不会提交
 3. 服务间通过 Docker 内部网络通信，不经过宿主机
-4. Coxy token 存储在容器内的 SQLite DB 中，通过 Web UI 管理
-5. Notion/GitHub PAT 建议使用最小权限原则
+4. Copilot Token 通过 `.env` 的 `COPILOT_PROXY_TOKEN` 变量注入，copilot-api 内部管理 Copilot 认证
+5. Bifrost 网关不对外暴露端口，仅服务内部使用，auth 已关闭
+6. Notion/GitHub PAT 建议使用最小权限原则

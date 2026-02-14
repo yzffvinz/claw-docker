@@ -7,7 +7,6 @@ on:
       - 'docker-compose.yml'
       - 'litellm_config.yaml'
       - '.github/workflows/**'
-  workflow_dispatch:
 
 concurrency:
   group: deploy

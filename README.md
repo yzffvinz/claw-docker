@@ -108,4 +108,9 @@ docker compose up -d              # 重启
 ### 自动部署 (GitHub Actions)
 
 项目合入 `main` 分支后会触发自动部署。
-建议流程：修改 -> `git commit` -> `git push origin main`。
+
+**前提条件：**
+你需要先在服务器上配置并启动 GitHub **Self-hosted Runner**（详见 GitHub Repo `Settings -> Actions -> Runners`），Action 才能在你的服务器上执行部署指令。
+
+**操作流程：**
+本地修改 -> `git commit` -> `git push origin main` -> GitHub Actions 调用 Runner 在服务器上自动更新。

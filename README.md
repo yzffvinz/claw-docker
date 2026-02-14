@@ -1,16 +1,14 @@
 # OpenClaw Docker 部署 🦞
 
-通过 Docker Compose 一键部署 OpenClaw AI 助手，集成 Azure OpenAI 和 GitHub Copilot 模型。
+通过 Docker Compose 一键部署 OpenClaw AI 助手，通过 Coxy 代理访问 GitHub Copilot 模型。
 
 ## 架构
 
 ```
-飞书/Web ──→ OpenClaw ──→ LiteLLM ──→ Azure OpenAI (GPT 5.2)
-                │            │
-                │            ├──→ Copilot Proxy ──→ GitHub Copilot
-                │            │                      ├─ Claude Opus 4.6
-                │            │                      ├─ Claude Opus 4.5
-                │            │                      └─ Claude Sonnet 4.5
+飞书/Web ──→ OpenClaw ──→ LiteLLM ──→ Coxy ──→ GitHub Copilot
+                │            │                   ├─ Claude Opus 4.6
+                │            │                   ├─ Claude Sonnet 4.5
+                │            │                   └─ GPT-5.2
                 │            │
                 │            └──→ Embedding API (text-embedding-3-small)
                 │
@@ -22,7 +20,7 @@
 |------|------|------|
 | **openclaw** | AI 助手主体（飞书集成、网关） | 18789 |
 | **litellm** | 统一模型网关，多模型路由 | 4000 (内部) |
-| **copilot-proxy** | GitHub Copilot API 代理 | 3001 (localhost) |
+| **copilot-proxy** | Coxy — GitHub Copilot API 代理 | 3001 (localhost) |
 | **postgres** | LiteLLM 数据库 | 5432 (内部) |
 
 ## 快速开始
@@ -37,15 +35,15 @@ cp .env.example .env
 
 | 变量 | 必填 | 说明 | 获取方式 |
 |------|------|------|----------|
-| `GITHUB_TOKEN` | ✅ | GitHub PAT（copilot-proxy 引导用） | [github.com/settings/tokens](https://github.com/settings/tokens) |
-| `COPILOT_PROXY_TOKEN` | ✅ | OAuth token（首次部署后通过 Web UI 生成） | 见下方步骤 3 |
-| `AZURE_OPENAI_API_KEY` | ✅ | Azure OpenAI 密钥 | Azure Portal |
-| `AZURE_OPENAI_ENDPOINT` | ✅ | Azure OpenAI 端点 | Azure Portal |
-| `AZURE_OPENAI_MODEL` | ✅ | Azure 模型名 | Azure Portal |
 | `FEISHU_APP_ID` | ✅ | 飞书 App ID | [open.feishu.cn](https://open.feishu.cn) |
 | `FEISHU_APP_SECRET` | ✅ | 飞书 App Secret | [open.feishu.cn](https://open.feishu.cn) |
+| `LITELLM_MASTER_KEY` | 自动生成 | LiteLLM API 网关密钥 | 32 位随机字符串 |
+| `LITELLM_SALT_KEY` | 自动生成 | LiteLLM 加密盐值 | 32 位随机字符串 |
+| `POSTGRES_PASSWORD` | 自动生成 | PostgreSQL 密码 | 32 位随机字符串 |
+| `OPENCLAW_GATEWAY_TOKEN` | 自动生成 | 控制台访问 Token | 32 位随机字符串 |
 | `NOTION_API_KEY` | 可选 | Notion Integration API Key | [notion.so/my-integrations](https://notion.so/my-integrations) |
 | `GITHUB_PAT` | 可选 | GitHub PAT（workspace 备份用） | [github.com/settings/tokens](https://github.com/settings/tokens) |
+| `BRAVE_API_KEY` | 可选 | Brave Search API Key（web_search 工具） | [brave.com/search/api](https://brave.com/search/api/) |
 | `EMBEDDING_API_BASE` | 可选 | Embedding 服务地址（OpenAI 兼容） | 自行部署 |
 | `EMBEDDING_API_KEY` | 可选 | Embedding 服务 API Key | 自行部署 |
 
@@ -59,28 +57,22 @@ docker compose up -d
 - 拉取所有镜像
 - 创建 Docker 内部网络
 - 初始化 PostgreSQL 数据库
-- 运行 `init-workspace.sh` 配置 OpenClaw 容器环境
 
-### 3. 配置 Copilot Proxy Token
+### 3. 配置 Coxy Token
 
-GitHub Copilot 需要通过 OAuth 流程获取 token：
+GitHub Copilot 需要通过 OAuth 流程获取 token，由 Coxy 内部管理：
 
 ```bash
 # 本地建立 SSH 隧道
-ssh -L 3001:127.0.0.1:3001 user@your-server
+ssh -L 3001:127.0.0.1:3001 user@your-server -N
 
 # 浏览器打开
 http://localhost:3001
 ```
 
-在 Web UI 中：**Generate Token** → **Set as Default** → 将 `ghu_xxx` 复制到 `.env` 的 `COPILOT_PROXY_TOKEN`。
+在 Web UI 中：用 GitHub 登录 → **Generate Token** → **Set as Default**。
 
-```bash
-# 重启 LiteLLM 使 token 生效
-docker compose restart litellm
-```
-
-> ⚠️ `ghu_` token 有效期有限（约 30 分钟），过期后需重新生成。
+> ⚠️ Token 有效期有限，过期后需重新在 Web UI 中生成。无需修改 `.env` 或重启服务。
 
 ### 4. 配置飞书
 
@@ -97,15 +89,14 @@ ssh -L 18789:127.0.0.1:18789 user@your-server
 
 ## 可用模型
 
-| 模型名称 | 来源 | 上下文窗口 |
-|----------|------|-----------|
-| `openai/claude-opus-4-6` | GitHub Copilot | 200K |
-| `openai/claude-opus-4-5` | GitHub Copilot | 200K |
-| `openai/claude-sonnet-4-5` | GitHub Copilot | 200K |
-| `openai/azure-gpt-5-2` | Azure OpenAI | 128K |
-| `text-embedding-3-small` | 自行部署 | — |
+| 模型名称 | 来源 | 用途 |
+|----------|------|------|
+| `claude-opus-4-6` | GitHub Copilot (Coxy) | 主力模型 |
+| `claude-sonnet-4-5` | GitHub Copilot (Coxy) | 快速模型，日常任务首选 |
+| `gpt-5-2` | GitHub Copilot (Coxy) | 通用模型 |
+| `text-embedding-3-small` | Azure OpenAI | 向量检索（memory_search） |
 
-默认模型：`openai/claude-opus-4-6`
+模型配置在 `litellm_config.yaml` 中管理，`STORE_MODEL_IN_DB` 已关闭，不支持通过 API 动态添加模型。
 
 > 💡 `text-embedding-3-small` 用于 OpenClaw 的 `memory_search` 语义向量检索，需在 `.env` 中配置 `EMBEDDING_API_BASE` 和 `EMBEDDING_API_KEY`。
 
@@ -143,7 +134,7 @@ OpenClaw 每天自动将 workspace 提交并推送到 GitHub。
 data/
 ├── postgres/        # LiteLLM 数据库
 ├── litellm/         # LiteLLM 运行时数据
-├── copilot-proxy/   # Copilot OAuth token 存储
+├── copilot-proxy/   # Coxy 数据（OAuth token、SQLite DB）
 └── openclaw/        # ⭐ OpenClaw 核心数据
     ├── config/      # Gateway 配置
     └── workspace/   # Agent workspace（记忆、文件、Git 仓库）
@@ -152,7 +143,8 @@ data/
 **重启安全性：**
 - ✅ Workspace（记忆、文件、cron 任务）→ 在 volume 内，重启不丢
 - ✅ Gateway 配置 → 在 volume 内，重启不丢
-- ✅ Notion/Git 凭证 → 通过 `.env` + `init-workspace.sh` 每次启动注入
+- ✅ Coxy token → 在 volume 内（`data/coxy/coxy.db`），重启不丢
+- ✅ Notion/Git 凭证 → 通过 `.env` 注入
 - ⚠️ `.env` 文件本身 → 在宿主机上，需要自行备份
 
 ## 文件结构
@@ -161,9 +153,10 @@ data/
 .
 ├── docker-compose.yml     # 服务编排（4 个服务）
 ├── litellm_config.yaml    # LiteLLM 模型配置
-├── init-workspace.sh      # OpenClaw 容器初始化脚本（配置 Notion/Git 凭证）
 ├── .env.example           # 环境变量模板
 ├── .env                   # 实际配置（⚠️ 不入 Git，自行备份）
+├── scripts/               # 工具脚本
+├── .github/workflows/     # CI/CD 自动部署
 ├── .gitignore
 └── data/                  # 持久化数据（不入 Git）
 ```
@@ -291,18 +284,16 @@ docker compose up -d                                    # 启动
 
 ## Troubleshooting
 
-### Copilot Proxy Token 过期
+### Coxy Token 过期
 
 **症状**：模型调用报 401/403，日志显示 token invalid
 
 ```bash
-# 1. SSH 隧道连到 copilot-proxy
-ssh -L 3001:127.0.0.1:3001 user@your-server
+# 1. SSH 隧道连到 Coxy Web UI
+ssh -L 3001:127.0.0.1:3001 user@your-server -N
 
-# 2. 浏览器打开 http://localhost:3001，重新 Generate Token
-# 3. 更新 .env 中的 COPILOT_PROXY_TOKEN
-# 4. 重启
-docker compose restart litellm
+# 2. 浏览器打开 http://localhost:3001，重新 Generate Token → Set as Default
+# 无需修改 .env 或重启服务
 ```
 
 ### OpenClaw memory_search 不工作
@@ -405,5 +396,5 @@ docker compose logs openclaw | tail -50
 1. 端口仅绑定 `127.0.0.1`（除飞书 webhook 端口），通过 SSH 隧道访问
 2. `.env` 已被 `.gitignore` 排除，敏感信息不会提交
 3. 服务间通过 Docker 内部网络通信，不经过宿主机
-4. Copilot Proxy Token 有时效性，即使泄露影响有限
+4. Coxy token 存储在容器内的 SQLite DB 中，通过 Web UI 管理
 5. Notion/GitHub PAT 建议使用最小权限原则

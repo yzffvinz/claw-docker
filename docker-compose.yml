@@ -75,9 +75,8 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
       DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
-      STORE_MODEL_IN_DB: "True"
-      # 模型参数（通过 litellm_config.yaml 引用）
-      COPILOT_PROXY_TOKEN: ${COPILOT_PROXY_TOKEN}
+      STORE_MODEL_IN_DB: "False"
+      # Coxy 无需 API key，token 由 Coxy 内部管理
       # Embedding 模型（独立部署的 text-embedding-3-small）
       EMBEDDING_API_BASE: ${EMBEDDING_API_BASE}
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY}

@@ -76,7 +76,7 @@ services:
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
       DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
       STORE_MODEL_IN_DB: "False"
-      # Coxy 无需 API key，token 由 Coxy 内部管理
+      # Coxy 使用 dummy token "_"，无需传入实际 token
       # Embedding 模型（独立部署的 text-embedding-3-small）
       EMBEDDING_API_BASE: ${EMBEDDING_API_BASE}
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY}

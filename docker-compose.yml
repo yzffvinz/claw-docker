@@ -42,9 +42,9 @@ services:
     environment:
       PORT: "3000"
       LOG_LEVEL: info
-      DATABASE_URL: "file:/app/coxy.db"
+      DATABASE_URL: "file:/app/data/coxy.db"
     volumes:
-      - ./data/coxy/coxy.db:/app/coxy.db
+      - ./data/coxy:/app/data
     ports:
       # 仅绑定 localhost，通过 SSH 隧道访问 Web UI 管理 token
       - "127.0.0.1:3001:3000"

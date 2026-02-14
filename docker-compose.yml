@@ -26,11 +26,12 @@ services:
       retries: 5
 
   # ============================================
-  # Copilot Proxy - GitHub Copilot API 代理
+  # Coxy - GitHub Copilot API 代理 (原 copilot-proxy 升级版)
   # 提供 OpenAI 兼容接口访问 GitHub Copilot 模型
+  # https://github.com/coxy-proxy/coxy
   # ============================================
   copilot-proxy:
-    image: ghcr.io/hankchiutw/copilot-proxy:latest
+    image: ghcr.io/coxy-proxy/coxy:latest
     container_name: copilot-proxy
     restart: unless-stopped
     logging:
@@ -39,18 +40,18 @@ services:
         max-size: "50m"
         max-file: "3"
     environment:
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
       PORT: "3000"
       LOG_LEVEL: info
+      DATABASE_URL: "file:/app/data/coxy.db"
     volumes:
-      - ./data/copilot-proxy:/app/.storage
+      - ./data/coxy:/app/data
     ports:
       # 仅绑定 localhost，通过 SSH 隧道访问 Web UI 管理 token
       - "127.0.0.1:3001:3000"
     networks:
       - openclaw-network
     healthcheck:
-      test: ["CMD", "/nodejs/bin/node", "-e", "require('http').get('http://localhost:3000/health', function(r) { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', function() { process.exit(1); });"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/models', function(r) { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', function() { process.exit(1); });"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -76,9 +77,6 @@ services:
       DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
       STORE_MODEL_IN_DB: "True"
       # 模型参数（通过 litellm_config.yaml 引用）
-      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
-      AZURE_OPENAI_MODEL: ${AZURE_OPENAI_MODEL}
       COPILOT_PROXY_TOKEN: ${COPILOT_PROXY_TOKEN}
       # Embedding 模型（独立部署的 text-embedding-3-small）
       EMBEDDING_API_BASE: ${EMBEDDING_API_BASE}

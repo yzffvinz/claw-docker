@@ -16,7 +16,7 @@ model_list:
     litellm_params:
       model: openai/claude-opus-4.6
       api_base: http://copilot-proxy:3000/api
-      api_key: os.environ/COPILOT_PROXY_TOKEN
+      api_key: "no-key-needed"
     model_info:
       max_input_tokens: 125000
       max_output_tokens: 16384
@@ -29,23 +29,23 @@ model_list:
     litellm_params:
       model: openai/claude-sonnet-4.5
       api_base: http://copilot-proxy:3000/api
-      api_key: os.environ/COPILOT_PROXY_TOKEN
+      api_key: "no-key-needed"
     model_info:
       max_input_tokens: 125000
       max_output_tokens: 8192
 
   # ----------------------------------------
-  # GPT-5.3 Codex (通过 GitHub Copilot / Coxy)
-  # 代码任务专用
+  # GPT-5.2 (通过 GitHub Copilot / Coxy)
+  # 通用模型
   # ----------------------------------------
-  - model_name: gpt-5-3-codex
+  - model_name: gpt-5-2
     litellm_params:
-      model: openai/gpt-5.3-codex
+      model: openai/gpt-5.2
       api_base: http://copilot-proxy:3000/api
-      api_key: os.environ/COPILOT_PROXY_TOKEN
+      api_key: "no-key-needed"
     model_info:
       max_input_tokens: 128000
-      max_output_tokens: 16384
+      max_output_tokens: 64000
 
   # ----------------------------------------
   # Azure OpenAI text-embedding-3-small

@@ -148,7 +148,8 @@ data/
 ├── bifrost_config.json    # Bifrost 网关配置（copilot Provider）
 ├── .env.example           # 环境变量模板
 ├── .env                   # 实际配置（⚠️ 不入 Git，自行备份）
-├── scripts/               # 工具脚本
+├── scripts/
+│   └── update.sh          # 一键更新脚本（git pull + 拉镜像 + 重建）
 ├── .github/workflows/     # CI/CD 自动部署
 ├── .gitignore
 └── data/                  # 持久化数据（不入 Git）
@@ -167,8 +168,8 @@ docker compose logs -f bifrost
 # 重启单个服务
 docker compose restart openclaw
 
-# 更新到最新镜像
-docker compose pull && docker compose up -d
+# 更新所有服务（拉取代码+镜像+重建）
+bash scripts/update.sh
 
 # 停止所有服务
 docker compose down
@@ -341,21 +342,9 @@ docker container prune -f
 du -sh /var/lib/docker/containers/*/*-json.log
 ```
 
-### 新增环境变量后忘记更新 .env.example
+### 更新代码后服务启动报错
 
-**场景 1（开发者）**：改了 `docker-compose.yml` 加了新变量，但 `.env.example` 没同步
-
-```bash
-# 运行检查脚本
-bash scripts/check-env-sync.sh
-
-# 输出示例：
-# ❌ docker-compose.yml 引用了 .env.example 中缺失的变量:
-#   - NEW_VAR_NAME
-# → 补上缺失的变量到 .env.example
-```
-
-**场景 2（使用者）**：更新代码后服务启动报错，可能是 `.env` 缺少新变量
+**可能原因**：`.env` 缺少新增的环境变量
 
 ```bash
 # 对比你的 .env 和最新的 .env.example

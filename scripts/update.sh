@@ -8,11 +8,7 @@ git pull
 
 echo ""
 echo "=== Pulling latest images ==="
-docker compose pull --ignore-buildable
-
-echo ""
-echo "=== Building images ==="
-docker compose build --pull
+docker compose pull
 
 echo ""
 echo "=== Recreating containers ==="

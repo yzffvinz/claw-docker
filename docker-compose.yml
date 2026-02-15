@@ -1,70 +1,8 @@
 services:
   # ============================================
-  # copilot-api - GitHub Copilot API 代理
-  # 提供 OpenAI 兼容接口访问 GitHub Copilot 模型
-  # https://github.com/ericc-ch/copilot-api
-  # ============================================
-  copilot-proxy:
-    build:
-      context: https://github.com/ericc-ch/copilot-api.git#v0.7.0
-    container_name: copilot-proxy
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-    environment:
-      GH_TOKEN: ${COPILOT_PROXY_TOKEN}
-    volumes:
-      - ./data/copilot-api:/root/.local/share/copilot-api
-    ports:
-      - "127.0.0.1:4141:4141"
-    networks:
-      - openclaw-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:4141/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-
-  # ============================================
-  # Bifrost - 高性能 AI 模型网关
-  # 统一路由 GitHub Copilot 模型（通过 copilot-api）
-  # https://github.com/maximhq/bifrost
-  # ============================================
-  bifrost:
-    image: maximhq/bifrost:latest
-    container_name: bifrost
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-    environment:
-      APP_PORT: "8080"
-      APP_HOST: "0.0.0.0"
-      LOG_LEVEL: "info"
-    volumes:
-      - ./data/bifrost:/app/data
-      - ./bifrost_config.json:/app/data/config.json:ro
-    networks:
-      - openclaw-network
-    depends_on:
-      copilot-proxy:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/v1/models || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # ============================================
   # OpenClaw - AI 助手主体
   # 通过飞书/Web 等渠道与用户交互
+  # 原生支持 GitHub Copilot 模型（无需额外代理）
   # ============================================
   openclaw:
     image: alpine/openclaw:latest
@@ -82,10 +20,8 @@ services:
       OPENCLAW_GATEWAY_MODE: local
       FEISHU_APP_ID: ${FEISHU_APP_ID}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET}
-      # 所有模型请求通过 Bifrost 网关
-      OPENAI_API_KEY: "_"
-      OPENAI_API_BASE: http://bifrost:8080
-      ANTHROPIC_API_KEY: "_"
+      # GitHub Copilot 原生支持（通过 github-copilot provider）
+      COPILOT_GITHUB_TOKEN: ${COPILOT_GITHUB_TOKEN}
       # 第三方集成（通过 .env 配置）
       NOTION_API_KEY: ${NOTION_API_KEY:-}
       GITHUB_PAT: ${GITHUB_PAT:-}
@@ -95,11 +31,6 @@ services:
     ports:
       # Gateway 端口（飞书 webhook 需要公网访问，不能绑定 localhost）
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
-    networks:
-      - openclaw-network
-    depends_on:
-      bifrost:
-        condition: service_healthy
     ulimits:
       nofile:
         soft: 65536
@@ -119,7 +50,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-
-networks:
-  openclaw-network:
-    driver: bridge

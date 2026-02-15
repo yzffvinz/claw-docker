@@ -1,16 +1,16 @@
 # OpenClaw Docker 部署 🦞
 
-通过 Docker Compose 一键部署 OpenClaw AI 助手，通过 copilot-api 代理访问 GitHub Copilot 模型。
+通过 Docker Compose 一键部署 OpenClaw AI 助手，使用原生 GitHub Copilot 模型支持。
 
 ## 架构
 
 ```
-飞书/Web ──→ OpenClaw ──→ Bifrost ──→ copilot-api ──→ GitHub Copilot
-                │                                      ├─ Claude Opus 4.6
-                │                                      ├─ GPT-5.2
-                │                                      ├─ Gemini 3 Pro
-                │                                      ├─ Gemini 3 Flash
-                │                                      └─ text-embedding-3-small
+飞书/Web ──→ OpenClaw ──→ GitHub Copilot（原生 github-copilot provider）
+                │              ├─ Claude Opus 4.6
+                │              ├─ GPT-5.2
+                │              ├─ Gemini 3 Pro
+                │              ├─ Gemini 3 Flash
+                │              └─ text-embedding-3-small
                 │
                 ├──→ Notion API（读写页面/数据库）
                 └──→ GitHub（workspace 自动备份）
@@ -18,9 +18,7 @@
 
 | 服务 | 作用 | 端口 |
 |------|------|------|
-| **openclaw** | AI 助手主体（飞书集成、网关） | 18789 |
-| **bifrost** | 高性能 AI 模型网关（Go，<100µs 开销） | 8080 (内部) |
-| **copilot-proxy** | copilot-api — GitHub Copilot API 代理 | 4141 (localhost) |
+| **openclaw** | AI 助手主体（飞书集成、网关、原生 Copilot 支持） | 18789 |
 
 ## 快速开始
 
@@ -34,7 +32,7 @@ cp .env.example .env
 
 | 变量 | 必填 | 说明 | 获取方式 |
 |------|------|------|----------|
-| `COPILOT_PROXY_TOKEN` | ✅ | GitHub Copilot Token（copilot-api 认证） | `docker compose run --rm copilot-proxy /entrypoint.sh --auth` |
+| `COPILOT_GITHUB_TOKEN` | ✅ | GitHub Copilot Token | 见下方「配置 Copilot Token」 |
 | `FEISHU_APP_ID` | ✅ | 飞书 App ID | [open.feishu.cn](https://open.feishu.cn) |
 | `FEISHU_APP_SECRET` | ✅ | 飞书 App Secret | [open.feishu.cn](https://open.feishu.cn) |
 | `OPENCLAW_GATEWAY_TOKEN` | 自动生成 | 控制台访问 Token | 32 位随机字符串 |
@@ -50,15 +48,17 @@ docker compose up -d
 
 ### 3. 配置 Copilot Token
 
-copilot-api 需要通过设备授权码流程获取 GitHub Copilot Token（`ghu_` 前缀）：
+OpenClaw 原生支持 GitHub Copilot，通过设备授权流程登录：
 
 ```bash
-# 运行 auth 流程获取 token
-docker compose run --rm copilot-proxy /entrypoint.sh --auth
+# 在容器内运行 GitHub 设备登录流程
+docker compose exec openclaw node dist/index.js models auth login-github-copilot
 
 # 按提示在浏览器中完成 GitHub 设备授权
-# 将生成的 token 填入 .env 的 COPILOT_PROXY_TOKEN
+# 登录成功后 token 会自动保存到 OpenClaw 配置中
 ```
+
+也可以直接在 `.env` 中设置 `COPILOT_GITHUB_TOKEN`（GitHub OAuth token，`ghu_` 前缀）。
 
 ### 4. 访问控制台
 
@@ -73,8 +73,6 @@ ssh -L 18789:127.0.0.1:18789 user@your-server
 
 ```
 data/
-├── bifrost/         # Bifrost 网关数据（SQLite）
-├── copilot-api/     # copilot-api 数据（GitHub token）
 └── openclaw/        # ⭐ OpenClaw 核心数据
     ├── config/      # Gateway 配置
     └── workspace/   # Agent workspace（记忆、文件、Git 仓库）
@@ -84,8 +82,7 @@ data/
 
 ```
 .
-├── docker-compose.yml     # 服务编排（3 个服务）
-├── bifrost_config.json    # Bifrost 网关配置（copilot Provider）
+├── docker-compose.yml     # 服务编排（单容器）
 ├── .env.example           # 环境变量模板
 ├── .env                   # 实际配置（⚠️ 不入 Git，自行备份）
 ├── scripts/

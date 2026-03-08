@@ -5,7 +5,8 @@ services:
   # 原生支持 GitHub Copilot 模型（无需额外代理）
   # ============================================
   openclaw:
-    image: alpine/openclaw:latest
+    build: .
+    image: openclaw-custom:latest
     container_name: openclaw
     restart: unless-stopped
     logging:

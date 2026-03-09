@@ -1,14 +1,20 @@
 FROM alpine/openclaw:latest
 
+USER root
+
 # 修复飞书插件缺失的依赖
-RUN cd /app && npm install @larksuiteoapi/node-sdk@^1.59.0
+RUN cd /app && npm install --no-package-lock @larksuiteoapi/node-sdk 2>/dev/null || \
+    (mkdir -p /tmp/lark-fix && cd /tmp/lark-fix && npm init -y > /dev/null 2>&1 && \
+     npm install @larksuiteoapi/node-sdk && \
+     cp -r /tmp/lark-fix/node_modules/@larksuiteoapi /app/node_modules/ && \
+     rm -rf /tmp/lark-fix)
 
 # 安装 faster-whisper + ffmpeg 用于语音转文字
-USER root
 RUN apt-get update && \
     apt-get install -y --no-install-recommends python3-pip ffmpeg && \
     pip install --no-cache-dir --break-system-packages faster-whisper && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
 USER node
 
 # 预下载 base 模型（约150MB，构建时下载避免运行时等待）

@@ -29,6 +29,7 @@ services:
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
     volumes:
       - ./data/openclaw:/home/node/.openclaw
+      - whisper-models:/home/node/.cache/huggingface
     ports:
       # Gateway 端口（飞书 webhook 需要公网访问，不能绑定 localhost）
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
@@ -51,3 +52,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+volumes:
+  whisper-models:

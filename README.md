@@ -6,6 +6,7 @@
 
 ```
 飞书/Web ──→ OpenClaw ──→ GitHub Copilot（原生 github-copilot provider）
+                │              ├─ GPT-5.4
                 │              ├─ Claude Opus 4.6
                 │              ├─ GPT-5.2
                 │              ├─ Gemini 3 Pro

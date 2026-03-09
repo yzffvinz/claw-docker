@@ -1,5 +1,8 @@
 FROM alpine/openclaw:latest
 
+# 修复飞书插件缺失的依赖
+RUN cd /app && npm install @larksuiteoapi/node-sdk@^1.59.0
+
 # 安装 faster-whisper + ffmpeg 用于语音转文字
 USER root
 RUN apt-get update && \

@@ -23,3 +23,5 @@ jobs:
           git pull
           docker compose build --pull
           docker compose up -d --force-recreate --remove-orphans
+      - name: Cleanup old Docker images
+        run: docker image prune -af

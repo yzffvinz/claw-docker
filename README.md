@@ -74,9 +74,28 @@ ssh -L 18789:127.0.0.1:18789 user@your-server
 
 ```
 data/
-└── openclaw/        # ⭐ OpenClaw 核心数据
-    ├── config/      # Gateway 配置
-    └── workspace/   # Agent workspace（记忆、文件、Git 仓库）
+├── openclaw/        # ⭐ OpenClaw 核心数据
+│   ├── config/      # Gateway 配置
+│   └── workspace/   # Agent workspace（记忆、文件、Git 仓库）
+└── agents/          # AgentSkills / npx skills 安装目录（容器重建后保留）
+```
+
+## 预装 Skills（幂等）
+
+该部署默认会在容器启动时检查并自动安装这些摄影相关 skills：
+
+- `erichowens/some_claude_skills@photo-composition-critic`
+- `inferen-sh/skills@product-photography`
+
+特点：
+- **幂等**：已安装就跳过，不会重复安装
+- **持久化**：安装结果保存在 `./data/agents`
+- **可配置**：可通过 `.env` 覆盖 `OPENCLAW_BOOTSTRAP_SKILLS`
+
+例如：
+
+```bash
+OPENCLAW_BOOTSTRAP_SKILLS=erichowens/some_claude_skills@photo-composition-critic,inferen-sh/skills@product-photography
 ```
 
 ## 文件结构

@@ -33,4 +33,8 @@ RUN apt-get update && \
     pip install --no-cache-dir --break-system-packages faster-whisper && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# 复制启动时的幂等 Skill 安装脚本
+COPY --chown=node:node scripts/bootstrap-skills.sh /usr/local/bin/bootstrap-skills.sh
+RUN chmod +x /usr/local/bin/bootstrap-skills.sh
+
 USER node

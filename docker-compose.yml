@@ -24,12 +24,15 @@ services:
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET}
       # GitHub Copilot 原生支持（通过 github-copilot provider）
       COPILOT_GITHUB_TOKEN: ${COPILOT_GITHUB_TOKEN}
+      # 启动时自动幂等安装的 skills（安装后保存在 /home/node/.agents）
+      OPENCLAW_BOOTSTRAP_SKILLS: ${OPENCLAW_BOOTSTRAP_SKILLS:-erichowens/some_claude_skills@photo-composition-critic,inferen-sh/skills@product-photography}
       # 第三方集成（通过 .env 配置）
       NOTION_API_KEY: ${NOTION_API_KEY:-}
       GITHUB_PAT: ${GITHUB_PAT:-}
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
     volumes:
       - ./data/openclaw:/home/node/.openclaw
+      - ./data/agents:/home/node/.agents
       - whisper-models:/home/node/.cache/huggingface
     ports:
       # Gateway 端口（飞书 webhook 需要公网访问，不能绑定 localhost）
@@ -39,14 +42,9 @@ services:
         soft: 65536
         hard: 65536
     command:
-      - "node"
-      - "dist/index.js"
-      - "gateway"
-      - "--bind"
-      - "lan"
-      - "--port"
-      - "18789"
-      - "--allow-unconfigured"
+      - "sh"
+      - "-lc"
+      - "bootstrap-skills.sh && exec node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured"
     healthcheck:
       test: ["CMD", "node", "dist/index.js", "health"]
       interval: 30s

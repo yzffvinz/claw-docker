@@ -20,7 +20,9 @@ jobs:
       - name: Deploy
         run: |
           cd ~/claw-docker
-          git pull
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fd
           docker compose build --pull
           docker compose up -d --force-recreate --remove-orphans
       - name: Cleanup old Docker images

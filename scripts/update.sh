@@ -3,8 +3,10 @@
 set -e
 cd "$(dirname "$0")/.."
 
-echo "=== Pulling latest code ==="
-git pull
+echo "=== Syncing latest code (hard reset + clean) ==="
+git fetch origin main
+git reset --hard origin/main
+git clean -fd
 
 echo ""
 echo "=== Pulling latest images ==="

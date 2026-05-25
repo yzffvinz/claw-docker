@@ -1,4 +1,8 @@
+# OpenClaw 自定义镜像 - 更新至 2026.5.22
 # OpenClaw 自定义镜像 - 更新至 2026.4.2
+=======
+# OpenClaw 自定义镜像 - 更新至 2026.5.22
+>>>>>>> ba67d8a (🦞 upgrade openclaw to 2026.5.22)
 FROM alpine/openclaw:latest
 
 USER root

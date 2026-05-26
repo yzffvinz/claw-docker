@@ -19,6 +19,10 @@ services:
     environment:
       HOME: /home/node
       TERM: xterm-256color
+      # Speed up repeated CLI runs (including health checks) on small VMs.
+      NODE_COMPILE_CACHE: /var/tmp/openclaw-compile-cache
+      # Keep routine gateway restarts in-process instead of respawning.
+      OPENCLAW_NO_RESPAWN: "1"
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       OPENCLAW_GATEWAY_MODE: local
       FEISHU_APP_ID: ${FEISHU_APP_ID}
@@ -47,11 +51,11 @@ services:
       - "-lc"
       - "bootstrap-skills.sh && exec node dist/index.js gateway --bind lan --port 18789 --allow-unconfigured"
     healthcheck:
-      test: ["CMD", "node", "dist/index.js", "health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      test: ["CMD", "node", "dist/index.js", "health", "--timeout", "30000"]
+      interval: 60s
+      timeout: 45s
+      retries: 5
+      start_period: 180s
 
 volumes:
   whisper-models:

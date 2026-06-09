@@ -1,4 +1,4 @@
-# OpenClaw 自定义镜像 - 更新至 2026.5.22
+# OpenClaw 自定义镜像 - 更新至 2026.6.1
 FROM alpine/openclaw:latest
 
 USER root

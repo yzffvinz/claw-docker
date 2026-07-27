@@ -3,7 +3,7 @@ services:
   # OpenClaw - AI 助手主体
   # 通过飞书/Web 等渠道与用户交互
   # 原生支持 GitHub Copilot 模型（无需额外代理） - updated config reload
-  # updated: 2026-06-09 v2026.6.1
+  # updated: 2026-07-27 v2026.7.2
   # ============================================
   openclaw:
     build: .
